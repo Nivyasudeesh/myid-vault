@@ -22,5 +22,4 @@ A privacy-first digital identity management system built with Flask.
 - SQLite (local DB)
 - Bootstrap 5
 
-## 📁 Folder Structure
 
