@@ -1,4 +1,4 @@
-from app import app
+from api import index
 
 if __name__ == "__main__":
-    app.run()
+    index.run()

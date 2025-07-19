@@ -2,7 +2,7 @@ from flask import Flask, render_template, request, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
-from models import db, User, Identity
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 app = Flask(__name__)
 app.secret_key = 'supersecret'
@@ -11,26 +11,38 @@ app.secret_key = 'supersecret'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///myid.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Initialize DB
-db.init_app(app)
+db = SQLAlchemy(app)
 
 # Login Manager setup
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
+# Models
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(150), unique=True, nullable=False)
+    password = db.Column(db.String(150), nullable=False)
+
+class Identity(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    name = db.Column(db.String(150))
+    age = db.Column(db.String(10))
+    email = db.Column(db.String(150))
+    college = db.Column(db.String(150))
+    student_id = db.Column(db.String(150))
+
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# 🏠 Home Page
 @app.route('/')
 def home():
     if current_user.is_authenticated:
         return redirect('/dashboard')
     return render_template('home.html')
 
-# 📝 Register Page
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
@@ -44,7 +56,6 @@ def register():
         return redirect('/login')
     return render_template('register.html')
 
-# 🔐 Login Page
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -55,14 +66,12 @@ def login():
         return "Invalid credentials"
     return render_template('login.html')
 
-# 🚪 Logout
 @app.route('/logout')
 @login_required
 def logout():
     logout_user()
     return redirect('/')
 
-# 🧾 Dashboard – Create/Edit ID
 @app.route('/dashboard', methods=['GET', 'POST'])
 @login_required
 def dashboard():
@@ -84,7 +93,6 @@ def dashboard():
         return redirect('/share')
     return render_template('dashboard.html', data=identity)
 
-# 📤 Share Info
 @app.route('/share', methods=['GET', 'POST'])
 @login_required
 def share():
@@ -97,12 +105,13 @@ def share():
         return render_template('result.html', shared=shared)
     return render_template('share.html', data=identity)
 
-# 🛠 Create Page
 @app.route('/create')
 @login_required
 def create():
     return render_template('create.html')
 
-# 🚀 Run the app
-if __name__ == '__main__':
-    app.run(debug=True)
+# Required for Vercel compatibility
+app.wsgi_app = ProxyFix(app.wsgi_app)
+
+def handler(environ, start_response):
+    return app(environ, start_response)
